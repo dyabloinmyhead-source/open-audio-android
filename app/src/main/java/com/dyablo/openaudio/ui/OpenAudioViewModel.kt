@@ -9,6 +9,7 @@ import com.dyablo.openaudio.data.LocalMusicRepository
 import com.dyablo.openaudio.data.OfflineDownloadManager
 import com.dyablo.openaudio.data.RutrackerOpenInfoProvider
 import com.dyablo.openaudio.data.SearchResult
+import com.dyablo.openaudio.data.SearchHistoryStore
 import com.dyablo.openaudio.data.Track
 import com.dyablo.openaudio.data.TrackSource
 import com.dyablo.openaudio.playback.AudioPlayer
@@ -26,10 +27,11 @@ class OpenAudioViewModel(application: Application) : AndroidViewModel(applicatio
         RutrackerOpenInfoProvider(),
     )
     private val downloadManager = OfflineDownloadManager(application)
+    private val searchHistoryStore = SearchHistoryStore(application)
     private val player = AudioPlayer(application)
     private var progressJob: Job? = null
 
-    private val _state = MutableStateFlow(OpenAudioState())
+    private val _state = MutableStateFlow(OpenAudioState(searchHistory = searchHistoryStore.load()))
     val state: StateFlow<OpenAudioState> = _state
 
     fun loadLocal() {
@@ -45,7 +47,15 @@ class OpenAudioViewModel(application: Application) : AndroidViewModel(applicatio
         viewModelScope.launch {
             _state.update { it.copy(isSearching = true, error = null) }
             runCatching { sourceProviders.flatMap { provider -> provider.search(query) } }
-                .onSuccess { results -> _state.update { it.copy(results = results, isSearching = false) } }
+                .onSuccess { results ->
+                    _state.update {
+                        it.copy(
+                            results = results,
+                            isSearching = false,
+                            searchHistory = searchHistoryStore.save(query),
+                        )
+                    }
+                }
                 .onFailure { error -> _state.update { it.copy(error = error.message, isSearching = false) } }
         }
     }
@@ -116,6 +126,23 @@ class OpenAudioViewModel(application: Application) : AndroidViewModel(applicatio
         }
     }
 
+    fun queueInfoDownloadTest(result: SearchResult) {
+        val testTrack = Track(
+            id = "torrent-test-${result.id}",
+            title = result.title,
+            artist = result.artist,
+            uri = Uri.parse(result.infoUrl ?: result.id),
+            source = TrackSource.VerifiedOpenTorrent,
+            license = "Torrent test queue - no file downloaded",
+        )
+        _state.update {
+            it.copy(
+                pendingDownloads = (it.pendingDownloads + testTrack).distinctBy(Track::id),
+                activeInfo = result,
+            )
+        }
+    }
+
     fun openInfo(result: SearchResult) {
         _state.update { it.copy(selectedInfo = result, activeInfo = result) }
     }
@@ -147,6 +174,7 @@ class OpenAudioViewModel(application: Application) : AndroidViewModel(applicatio
 
 data class OpenAudioState(
     val query: String = "",
+    val searchHistory: List<String> = emptyList(),
     val localTracks: List<Track> = emptyList(),
     val results: List<SearchResult> = emptyList(),
     val isSearching: Boolean = false,

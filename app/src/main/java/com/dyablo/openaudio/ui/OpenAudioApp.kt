@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Download
@@ -113,6 +114,7 @@ fun OpenAudioApp(viewModel: OpenAudioViewModel = viewModel()) {
                 } else {
                     OpenSearch(
                         query = state.query,
+                        searchHistory = state.searchHistory,
                         results = state.results,
                         isSearching = state.isSearching,
                         error = state.error,
@@ -131,6 +133,7 @@ fun OpenAudioApp(viewModel: OpenAudioViewModel = viewModel()) {
                 result = result,
                 onDismiss = viewModel::closeInfo,
                 onDownload = viewModel::saveOffline,
+                onTestQueue = viewModel::queueInfoDownloadTest,
             )
         }
     }
@@ -163,6 +166,7 @@ private fun LocalLibrary(tracks: List<Track>, onPlay: (Track) -> Unit) {
 @Composable
 private fun OpenSearch(
     query: String,
+    searchHistory: List<String>,
     results: List<SearchResult>,
     isSearching: Boolean,
     error: String?,
@@ -184,6 +188,20 @@ private fun OpenSearch(
             Button(onClick = onSearch, enabled = !isSearching) {
                 Icon(Icons.Default.Search, contentDescription = null)
                 Text(if (isSearching) "Searching" else "Search")
+            }
+        }
+
+        if (searchHistory.isNotEmpty()) {
+            LazyRow(
+                modifier = Modifier.fillMaxWidth().padding(top = 10.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                items(searchHistory) { historicalQuery ->
+                    AssistChip(
+                        onClick = { onQueryChange(historicalQuery) },
+                        label = { Text(historicalQuery, maxLines = 1, overflow = TextOverflow.Ellipsis) },
+                    )
+                }
             }
         }
 
@@ -212,6 +230,9 @@ private fun OpenSearch(
                                 leadingIcon = { Icon(Icons.Default.Info, contentDescription = null) },
                             )
                         } else {
+                            IconButton(onClick = { onOpenInfo(result) }) {
+                                Icon(Icons.Default.Info, contentDescription = "Info")
+                            }
                             IconButton(onClick = { onPlay(result) }, enabled = result.streamUrl != null) {
                                 Icon(Icons.Default.PlayArrow, contentDescription = "Play")
                             }
@@ -325,8 +346,10 @@ private fun InfoDialog(
     result: SearchResult,
     onDismiss: () -> Unit,
     onDownload: (SearchResult) -> Unit,
+    onTestQueue: (SearchResult) -> Unit,
 ) {
     val canDownload = !result.isInfoOnly && result.downloadUrl != null
+    val actionLabel = if (canDownload) "Save offline" else "Test queue"
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -340,7 +363,7 @@ private fun InfoDialog(
                 Text("Seeds: ${result.seeds ?: 0}  Leeches: ${result.leeches ?: 0}", style = MaterialTheme.typography.bodySmall)
                 Text(result.license, style = MaterialTheme.typography.bodySmall)
                 if (!canDownload) {
-                    Text("Download is available only for verified open audio sources.", style = MaterialTheme.typography.labelSmall)
+                    Text("Test queue updates the app UI without downloading torrent files.", style = MaterialTheme.typography.labelSmall)
                 }
                 result.infoUrl?.let { Text(it, style = MaterialTheme.typography.labelSmall) }
             }
@@ -352,11 +375,16 @@ private fun InfoDialog(
         },
         dismissButton = {
             Button(
-                onClick = { onDownload(result) },
-                enabled = canDownload,
+                onClick = {
+                    if (canDownload) {
+                        onDownload(result)
+                    } else {
+                        onTestQueue(result)
+                    }
+                },
             ) {
                 Icon(Icons.Default.Download, contentDescription = null)
-                Text("Save offline")
+                Text(actionLabel)
             }
         },
     )
