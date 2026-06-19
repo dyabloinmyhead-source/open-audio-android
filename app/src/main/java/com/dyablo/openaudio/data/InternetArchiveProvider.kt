@@ -46,7 +46,7 @@ class InternetArchiveProvider(
                 sourceName = name,
                 streamUrl = downloadUrl,
                 downloadUrl = downloadUrl,
-                torrentUrl = "https://archive.org/download/$identifier/$identifier_archive.torrent",
+                torrentUrl = "https://archive.org/download/$identifier/${identifier}_archive.torrent",
             )
         }
     }
