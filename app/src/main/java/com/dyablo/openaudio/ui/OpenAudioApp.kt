@@ -36,6 +36,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalUriHandler
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -56,9 +57,18 @@ fun OpenAudioApp(viewModel: OpenAudioViewModel = viewModel()) {
         Scaffold(
             topBar = {
                 TopAppBar(
-                    title = { Text("OpenAudio") },
-                    actions = {
-                        state.nowPlaying?.let { Text("Playing: $it", modifier = Modifier.padding(end = 16.dp)) }
+                    title = {
+                        Column {
+                            Text("OpenAudio", maxLines = 1)
+                            state.nowPlaying?.let {
+                                Text(
+                                    text = "Playing: $it",
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                    style = MaterialTheme.typography.bodySmall,
+                                )
+                            }
+                        }
                     },
                 )
             },
