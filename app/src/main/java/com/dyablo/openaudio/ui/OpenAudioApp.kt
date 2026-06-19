@@ -314,6 +314,7 @@ private fun OpenSearch(
 
         LazyColumn(modifier = Modifier.fillMaxSize().padding(top = 12.dp)) {
             items(results) { result ->
+                val canDownload = result.isVerifiedOpen && result.downloadUrl != null && !result.isInfoOnly
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -328,24 +329,21 @@ private fun OpenSearch(
                         Text(result.license, style = MaterialTheme.typography.labelSmall)
                     }
                     Row {
-                        if (result.isInfoOnly) {
+                        if (result.isInfoOnly || !result.isVerifiedOpen) {
                             AssistChip(
                                 onClick = { onOpenInfo(result) },
                                 label = { Text("Info") },
                                 leadingIcon = { Icon(Icons.Default.Info, contentDescription = null) },
                             )
-                        } else {
-                            IconButton(onClick = { onOpenInfo(result) }) {
-                                Icon(Icons.Default.Info, contentDescription = "Info")
-                            }
+                        }
+                        if (!result.isInfoOnly) {
                             IconButton(onClick = { onPlay(result) }, enabled = result.streamUrl != null) {
                                 Icon(Icons.Default.PlayArrow, contentDescription = "Play")
                             }
-                            IconButton(
-                                onClick = { onDownload(result) },
-                                enabled = result.isVerifiedOpen && result.downloadUrl != null,
-                            ) {
-                                Icon(Icons.Default.Download, contentDescription = "Save offline")
+                            if (canDownload) {
+                                IconButton(onClick = { onDownload(result) }) {
+                                    Icon(Icons.Default.Download, contentDescription = "Save offline")
+                                }
                             }
                         }
                     }

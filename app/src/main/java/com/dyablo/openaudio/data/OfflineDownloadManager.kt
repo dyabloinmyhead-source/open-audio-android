@@ -8,11 +8,13 @@ import android.os.Environment
 class OfflineDownloadManager(private val context: Context) {
     fun download(result: SearchResult, musicFolder: String): Long? {
         val url = result.downloadUrl ?: return null
+        if (!result.isVerifiedOpen || result.isInfoOnly) return null
+        val extension = fileExtensionFor(url)
         val fileName = buildString {
             append(result.artist.sanitizeFileName())
             append(" - ")
             append(result.title.sanitizeFileName())
-            append(".mp3")
+            append(extension)
         }
 
         val request = DownloadManager.Request(Uri.parse(url))
@@ -45,9 +47,20 @@ class OfflineDownloadManager(private val context: Context) {
 }
 
 private fun mimeTypeFor(url: String): String = when {
-    url.endsWith(".ogg", ignoreCase = true) -> "audio/ogg"
-    url.endsWith(".flac", ignoreCase = true) -> "audio/flac"
+    fileExtensionFor(url) == ".ogg" -> "audio/ogg"
+    fileExtensionFor(url) == ".flac" -> "audio/flac"
+    fileExtensionFor(url) == ".m4a" -> "audio/mp4"
     else -> "audio/mpeg"
+}
+
+private fun fileExtensionFor(url: String): String {
+    val extension = Uri.parse(url).lastPathSegment
+        ?.substringAfterLast('.', missingDelimiterValue = "")
+        ?.lowercase()
+    return when (extension) {
+        "mp3", "ogg", "flac", "m4a" -> ".$extension"
+        else -> ".mp3"
+    }
 }
 
 private fun String.sanitizeFileName(): String =
