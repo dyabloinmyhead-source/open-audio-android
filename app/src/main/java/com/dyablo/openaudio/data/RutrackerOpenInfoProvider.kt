@@ -26,8 +26,8 @@ class RutrackerOpenInfoProvider(
         val response: List<RutrackerInfoItem> = client.get(url).body()
 
         return response.take(25).map { item ->
-            val seeds = item.seeds.toIntOrNull()
-            val peers = item.peers.toIntOrNull()
+            val seeds = item.seeds?.toIntOrNull()
+            val peers = item.peers?.toIntOrNull()
             val metadata = listOfNotNull(
                 item.size?.takeIf { it.isNotBlank() }?.let { "Size $it" },
                 seeds?.let { "Seeds $it" },
