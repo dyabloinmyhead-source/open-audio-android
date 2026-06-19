@@ -53,12 +53,22 @@ class OpenAudioViewModel(application: Application) : AndroidViewModel(applicatio
         val query = state.value.query
         val settings = state.value.settings
         val sourceProviders: List<MusicSourceProvider> = listOfNotNull(
-            internetArchiveProvider.takeIf { settings.internetArchiveVerifiedOpen },
+            internetArchiveProvider.takeIf { settings.internetArchiveEnabled },
             rutrackerOpenInfoProvider.takeIf { settings.rutrackerInfoEnabled },
         )
         viewModelScope.launch {
             _state.update { it.copy(isSearching = true, error = null) }
-            runCatching { sourceProviders.flatMap { provider -> provider.search(query) } }
+            runCatching {
+                sourceProviders.flatMap { provider ->
+                    provider.search(query).map { result ->
+                        when (provider) {
+                            internetArchiveProvider -> result.copy(isVerifiedOpen = settings.internetArchiveVerifiedOpen)
+                            rutrackerOpenInfoProvider -> result.copy(isVerifiedOpen = settings.rutrackerVerifiedOpen)
+                            else -> result
+                        }
+                    }
+                }
+            }
                 .onSuccess { results ->
                     _state.update {
                         it.copy(
@@ -189,8 +199,16 @@ class OpenAudioViewModel(application: Application) : AndroidViewModel(applicatio
         updateSettings { it.copy(internetArchiveVerifiedOpen = enabled) }
     }
 
+    fun setInternetArchiveEnabled(enabled: Boolean) {
+        updateSettings { it.copy(internetArchiveEnabled = enabled) }
+    }
+
     fun setRutrackerInfoEnabled(enabled: Boolean) {
         updateSettings { it.copy(rutrackerInfoEnabled = enabled) }
+    }
+
+    fun setRutrackerVerifiedOpen(enabled: Boolean) {
+        updateSettings { it.copy(rutrackerVerifiedOpen = enabled) }
     }
 
     fun setMusicFolder(folder: String) {

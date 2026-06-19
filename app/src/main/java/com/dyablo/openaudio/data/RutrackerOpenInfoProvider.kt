@@ -47,6 +47,7 @@ class RutrackerOpenInfoProvider(
                 infoUrl = item.url,
                 metadata = metadata.ifBlank { null },
                 isInfoOnly = true,
+                isVerifiedOpen = false,
                 seeds = seeds,
                 leeches = peers,
             )

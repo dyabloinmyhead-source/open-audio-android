@@ -136,8 +136,10 @@ fun OpenAudioApp(viewModel: OpenAudioViewModel = viewModel()) {
 
                     else -> SettingsScreen(
                         settings = state.settings,
+                        onInternetArchiveEnabledChange = viewModel::setInternetArchiveEnabled,
                         onInternetArchiveChange = viewModel::setInternetArchiveVerifiedOpen,
                         onRutrackerInfoChange = viewModel::setRutrackerInfoEnabled,
+                        onRutrackerVerifiedOpenChange = viewModel::setRutrackerVerifiedOpen,
                         onMusicFolderChange = viewModel::setMusicFolder,
                         onTorrentFolderChange = viewModel::setTorrentFolder,
                     )
@@ -160,8 +162,10 @@ fun OpenAudioApp(viewModel: OpenAudioViewModel = viewModel()) {
 @Composable
 private fun SettingsScreen(
     settings: AppSettings,
+    onInternetArchiveEnabledChange: (Boolean) -> Unit,
     onInternetArchiveChange: (Boolean) -> Unit,
     onRutrackerInfoChange: (Boolean) -> Unit,
+    onRutrackerVerifiedOpenChange: (Boolean) -> Unit,
     onMusicFolderChange: (String) -> Unit,
     onTorrentFolderChange: (String) -> Unit,
 ) {
@@ -169,16 +173,28 @@ private fun SettingsScreen(
         item {
             Text("Sources", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
             SettingSwitchRow(
-                title = "Internet Archive",
-                subtitle = "Verified-open audio, offline saves, and torrent metadata files",
+                title = "Internet Archive enabled",
+                subtitle = "Search open audio catalog results",
+                checked = settings.internetArchiveEnabled,
+                onCheckedChange = onInternetArchiveEnabledChange,
+            )
+            SettingSwitchRow(
+                title = "Internet Archive verified-open",
+                subtitle = "Allow offline audio and .torrent metadata saves",
                 checked = settings.internetArchiveVerifiedOpen,
                 onCheckedChange = onInternetArchiveChange,
             )
             SettingSwitchRow(
-                title = "RuTracker open info",
+                title = "RuTracker info enabled",
                 subtitle = "Metadata and test queue only",
                 checked = settings.rutrackerInfoEnabled,
                 onCheckedChange = onRutrackerInfoChange,
+            )
+            SettingSwitchRow(
+                title = "RuTracker marked verified-open",
+                subtitle = "Trust flag for metadata; downloads still use test queue",
+                checked = settings.rutrackerVerifiedOpen,
+                onCheckedChange = onRutrackerVerifiedOpenChange,
             )
 
             Text(
@@ -325,7 +341,10 @@ private fun OpenSearch(
                             IconButton(onClick = { onPlay(result) }, enabled = result.streamUrl != null) {
                                 Icon(Icons.Default.PlayArrow, contentDescription = "Play")
                             }
-                            IconButton(onClick = { onDownload(result) }, enabled = result.downloadUrl != null) {
+                            IconButton(
+                                onClick = { onDownload(result) },
+                                enabled = result.isVerifiedOpen && result.downloadUrl != null,
+                            ) {
                                 Icon(Icons.Default.Download, contentDescription = "Save offline")
                             }
                         }
@@ -438,8 +457,8 @@ private fun InfoDialog(
     onTorrentDownload: (SearchResult) -> Unit,
     onTestQueue: (SearchResult) -> Unit,
 ) {
-    val canDownload = !result.isInfoOnly && result.downloadUrl != null
-    val canDownloadTorrent = !result.isInfoOnly && result.torrentUrl != null
+    val canDownload = result.isVerifiedOpen && !result.isInfoOnly && result.downloadUrl != null
+    val canDownloadTorrent = result.isVerifiedOpen && !result.isInfoOnly && result.torrentUrl != null
     val actionLabel = if (canDownload) "Save offline" else "Test queue"
 
     AlertDialog(
@@ -452,6 +471,7 @@ private fun InfoDialog(
                 Text("${result.artist} - ${result.sourceName}", style = MaterialTheme.typography.bodyMedium)
                 result.metadata?.let { Text(it, style = MaterialTheme.typography.bodySmall) }
                 Text("Seeds: ${result.seeds ?: 0}  Leeches: ${result.leeches ?: 0}", style = MaterialTheme.typography.bodySmall)
+                Text("Verified-open: ${if (result.isVerifiedOpen) "yes" else "no"}", style = MaterialTheme.typography.bodySmall)
                 Text(result.license, style = MaterialTheme.typography.bodySmall)
                 if (!canDownload && !canDownloadTorrent) {
                     Text("Test queue updates the app UI without downloading torrent files.", style = MaterialTheme.typography.labelSmall)

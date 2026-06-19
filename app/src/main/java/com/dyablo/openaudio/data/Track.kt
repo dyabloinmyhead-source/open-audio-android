@@ -30,6 +30,7 @@ data class SearchResult(
     val infoUrl: String? = null,
     val metadata: String? = null,
     val isInfoOnly: Boolean = false,
+    val isVerifiedOpen: Boolean = false,
     val seeds: Int? = null,
     val leeches: Int? = null,
 )
