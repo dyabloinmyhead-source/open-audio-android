@@ -6,16 +6,19 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.LibraryMusic
+import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Button
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -35,7 +38,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -72,6 +74,16 @@ fun OpenAudioApp(viewModel: OpenAudioViewModel = viewModel()) {
                     },
                 )
             },
+            bottomBar = {
+                state.nowPlaying?.let {
+                    MiniPlayer(
+                        title = it,
+                        isPlaying = state.isPlaying,
+                        onPause = viewModel::pause,
+                        onResume = viewModel::resume,
+                    )
+                }
+            },
         ) { padding ->
             Column(
                 modifier = Modifier
@@ -94,7 +106,10 @@ fun OpenAudioApp(viewModel: OpenAudioViewModel = viewModel()) {
                 }
 
                 if (selectedTab == 0) {
-                    LocalLibrary(tracks = state.localTracks, onPlay = viewModel::play)
+                    LocalLibrary(
+                        tracks = state.pendingDownloads + state.localTracks,
+                        onPlay = viewModel::play,
+                    )
                 } else {
                     OpenSearch(
                         query = state.query,
@@ -105,9 +120,14 @@ fun OpenAudioApp(viewModel: OpenAudioViewModel = viewModel()) {
                         onSearch = viewModel::search,
                         onPlay = viewModel::play,
                         onDownload = viewModel::saveOffline,
+                        onOpenInfo = viewModel::openInfo,
                     )
                 }
             }
+        }
+
+        state.selectedInfo?.let { result ->
+            InfoDialog(result = result, onDismiss = viewModel::closeInfo)
         }
     }
 }
@@ -126,6 +146,7 @@ private fun LocalLibrary(tracks: List<Track>, onPlay: (Track) -> Unit) {
                 Column(modifier = Modifier.weight(1f)) {
                     Text(track.title, fontWeight = FontWeight.SemiBold)
                     Text(track.artist, style = MaterialTheme.typography.bodySmall)
+                    track.license?.let { Text(it, style = MaterialTheme.typography.labelSmall) }
                 }
                 IconButton(onClick = { onPlay(track) }) {
                     Icon(Icons.Default.PlayArrow, contentDescription = "Play")
@@ -145,9 +166,8 @@ private fun OpenSearch(
     onSearch: () -> Unit,
     onPlay: (SearchResult) -> Unit,
     onDownload: (SearchResult) -> Unit,
+    onOpenInfo: (SearchResult) -> Unit,
 ) {
-    val uriHandler = LocalUriHandler.current
-
     Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
             OutlinedTextField(
@@ -183,7 +203,7 @@ private fun OpenSearch(
                     Row {
                         if (result.isInfoOnly) {
                             AssistChip(
-                                onClick = { result.infoUrl?.let(uriHandler::openUri) },
+                                onClick = { onOpenInfo(result) },
                                 label = { Text("Info") },
                                 leadingIcon = { Icon(Icons.Default.Info, contentDescription = null) },
                             )
@@ -200,4 +220,54 @@ private fun OpenSearch(
             }
         }
     }
+}
+
+@Composable
+private fun MiniPlayer(
+    title: String,
+    isPlaying: Boolean,
+    onPause: () -> Unit,
+    onResume: () -> Unit,
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 10.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(modifier = Modifier.weight(1f)) {
+            Text("Now playing", style = MaterialTheme.typography.labelSmall)
+            Text(title, maxLines = 1, overflow = TextOverflow.Ellipsis, fontWeight = FontWeight.SemiBold)
+        }
+        IconButton(onClick = if (isPlaying) onPause else onResume) {
+            Icon(
+                imageVector = if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
+                contentDescription = if (isPlaying) "Pause" else "Resume",
+            )
+        }
+    }
+}
+
+@Composable
+private fun InfoDialog(result: SearchResult, onDismiss: () -> Unit) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Text(result.title, maxLines = 3, overflow = TextOverflow.Ellipsis)
+        },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.widthIn(max = 520.dp)) {
+                Text("${result.artist} - ${result.sourceName}", style = MaterialTheme.typography.bodyMedium)
+                result.metadata?.let { Text(it, style = MaterialTheme.typography.bodySmall) }
+                Text(result.license, style = MaterialTheme.typography.bodySmall)
+                result.infoUrl?.let { Text(it, style = MaterialTheme.typography.labelSmall) }
+            }
+        },
+        confirmButton = {
+            Button(onClick = onDismiss) {
+                Text("Close")
+            }
+        },
+    )
 }

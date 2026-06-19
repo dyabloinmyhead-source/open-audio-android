@@ -18,6 +18,7 @@ class OfflineDownloadManager(private val context: Context) {
         val request = DownloadManager.Request(Uri.parse(url))
             .setTitle(result.title)
             .setDescription("${result.sourceName} - ${result.license}")
+            .setMimeType(mimeTypeFor(url))
             .setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
             .setDestinationInExternalPublicDir(Environment.DIRECTORY_MUSIC, "OpenAudio/$fileName")
             .setAllowedOverMetered(true)
@@ -25,6 +26,12 @@ class OfflineDownloadManager(private val context: Context) {
 
         return context.getSystemService(DownloadManager::class.java).enqueue(request)
     }
+}
+
+private fun mimeTypeFor(url: String): String = when {
+    url.endsWith(".ogg", ignoreCase = true) -> "audio/ogg"
+    url.endsWith(".flac", ignoreCase = true) -> "audio/flac"
+    else -> "audio/mpeg"
 }
 
 private fun String.sanitizeFileName(): String =

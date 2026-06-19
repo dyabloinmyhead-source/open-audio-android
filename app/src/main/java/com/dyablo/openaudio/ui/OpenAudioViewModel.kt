@@ -49,32 +49,53 @@ class OpenAudioViewModel(application: Application) : AndroidViewModel(applicatio
 
     fun play(track: Track) {
         player.play(track)
-        _state.update { it.copy(nowPlaying = track.title) }
+        _state.update { it.copy(nowPlaying = track.title, isPlaying = true) }
     }
 
     fun play(result: SearchResult) {
         val url = result.streamUrl ?: return
         player.playUrl(url)
-        _state.update { it.copy(nowPlaying = result.title) }
+        _state.update { it.copy(nowPlaying = result.title, isPlaying = true) }
+    }
+
+    fun pause() {
+        player.pause()
+        _state.update { it.copy(isPlaying = false) }
+    }
+
+    fun resume() {
+        player.resume()
+        _state.update { it.copy(isPlaying = true) }
     }
 
     fun saveOffline(result: SearchResult) {
         val id = downloadManager.download(result)
+        val pendingTrack = result.downloadUrl?.let { url ->
+            Track(
+                id = "download-${result.id}",
+                title = result.title,
+                artist = result.artist,
+                uri = Uri.parse(url),
+                source = TrackSource.OpenCatalog,
+                license = "Saved / pending - ${result.license}",
+            )
+        }
         _state.update {
             it.copy(
                 lastDownloadId = id,
-                savedPreviewTrack = result.downloadUrl?.let { url ->
-                    Track(
-                        id = result.id,
-                        title = result.title,
-                        artist = result.artist,
-                        uri = Uri.parse(url),
-                        source = TrackSource.OpenCatalog,
-                        license = result.license,
-                    )
-                },
+                savedPreviewTrack = pendingTrack,
+                pendingDownloads = pendingTrack?.let { track -> (it.pendingDownloads + track).distinctBy(Track::id) }
+                    ?: it.pendingDownloads,
             )
         }
+    }
+
+    fun openInfo(result: SearchResult) {
+        _state.update { it.copy(selectedInfo = result) }
+    }
+
+    fun closeInfo() {
+        _state.update { it.copy(selectedInfo = null) }
     }
 
     override fun onCleared() {
@@ -88,7 +109,10 @@ data class OpenAudioState(
     val results: List<SearchResult> = emptyList(),
     val isSearching: Boolean = false,
     val nowPlaying: String? = null,
+    val isPlaying: Boolean = false,
     val lastDownloadId: Long? = null,
     val savedPreviewTrack: Track? = null,
+    val pendingDownloads: List<Track> = emptyList(),
+    val selectedInfo: SearchResult? = null,
     val error: String? = null,
 )

@@ -24,6 +24,10 @@ class AudioPlayer(context: Context) {
         player.pause()
     }
 
+    fun resume() {
+        player.play()
+    }
+
     fun release() {
         player.release()
     }
