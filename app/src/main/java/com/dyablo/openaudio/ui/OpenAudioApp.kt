@@ -19,6 +19,7 @@ import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Forward30
 import androidx.compose.material.icons.filled.Replay10
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Button
@@ -32,6 +33,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Tab
 import androidx.compose.material3.TabRow
 import androidx.compose.material3.Text
@@ -49,6 +51,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.dyablo.openaudio.data.AppSettings
 import com.dyablo.openaudio.data.SearchResult
 import com.dyablo.openaudio.data.Track
 
@@ -104,25 +107,39 @@ fun OpenAudioApp(viewModel: OpenAudioViewModel = viewModel()) {
                         text = { Text("Open Search") },
                         icon = { Icon(Icons.Default.Search, contentDescription = null) },
                     )
+                    Tab(
+                        selected = selectedTab == 2,
+                        onClick = { selectedTab = 2 },
+                        text = { Text("Settings") },
+                        icon = { Icon(Icons.Default.Settings, contentDescription = null) },
+                    )
                 }
 
-                if (selectedTab == 0) {
-                    LocalLibrary(
+                when (selectedTab) {
+                    0 -> LocalLibrary(
                         tracks = state.pendingDownloads + state.localTracks,
                         onPlay = viewModel::play,
                     )
-                } else {
-                    OpenSearch(
-                        query = state.query,
-                        searchHistory = state.searchHistory,
-                        results = state.results,
-                        isSearching = state.isSearching,
-                        error = state.error,
-                        onQueryChange = viewModel::setQuery,
-                        onSearch = viewModel::search,
-                        onPlay = viewModel::play,
-                        onDownload = viewModel::saveOffline,
-                        onOpenInfo = viewModel::openInfo,
+
+                    1 -> OpenSearch(
+                            query = state.query,
+                            searchHistory = state.searchHistory,
+                            results = state.results,
+                            isSearching = state.isSearching,
+                            error = state.error,
+                            onQueryChange = viewModel::setQuery,
+                            onSearch = viewModel::search,
+                            onPlay = viewModel::play,
+                            onDownload = viewModel::saveOffline,
+                            onOpenInfo = viewModel::openInfo,
+                        )
+
+                    else -> SettingsScreen(
+                        settings = state.settings,
+                        onInternetArchiveChange = viewModel::setInternetArchiveVerifiedOpen,
+                        onRutrackerInfoChange = viewModel::setRutrackerInfoEnabled,
+                        onMusicFolderChange = viewModel::setMusicFolder,
+                        onTorrentFolderChange = viewModel::setTorrentFolder,
                     )
                 }
             }
@@ -137,6 +154,77 @@ fun OpenAudioApp(viewModel: OpenAudioViewModel = viewModel()) {
                 onTestQueue = viewModel::queueInfoDownloadTest,
             )
         }
+    }
+}
+
+@Composable
+private fun SettingsScreen(
+    settings: AppSettings,
+    onInternetArchiveChange: (Boolean) -> Unit,
+    onRutrackerInfoChange: (Boolean) -> Unit,
+    onMusicFolderChange: (String) -> Unit,
+    onTorrentFolderChange: (String) -> Unit,
+) {
+    LazyColumn(modifier = Modifier.fillMaxSize().padding(16.dp)) {
+        item {
+            Text("Sources", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+            SettingSwitchRow(
+                title = "Internet Archive",
+                subtitle = "Verified-open audio, offline saves, and torrent metadata files",
+                checked = settings.internetArchiveVerifiedOpen,
+                onCheckedChange = onInternetArchiveChange,
+            )
+            SettingSwitchRow(
+                title = "RuTracker open info",
+                subtitle = "Metadata and test queue only",
+                checked = settings.rutrackerInfoEnabled,
+                onCheckedChange = onRutrackerInfoChange,
+            )
+
+            Text(
+                "Download folders",
+                modifier = Modifier.padding(top = 22.dp),
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.SemiBold,
+            )
+            OutlinedTextField(
+                value = settings.musicFolder,
+                onValueChange = onMusicFolderChange,
+                modifier = Modifier.fillMaxWidth().padding(top = 10.dp),
+                singleLine = true,
+                label = { Text("Audio folder under Music") },
+            )
+            Text("Current path: Music/${settings.musicFolder}", style = MaterialTheme.typography.labelSmall)
+
+            OutlinedTextField(
+                value = settings.torrentFolder,
+                onValueChange = onTorrentFolderChange,
+                modifier = Modifier.fillMaxWidth().padding(top = 16.dp),
+                singleLine = true,
+                label = { Text("Torrent folder under Downloads") },
+            )
+            Text("Current path: Downloads/${settings.torrentFolder}", style = MaterialTheme.typography.labelSmall)
+        }
+    }
+}
+
+@Composable
+private fun SettingSwitchRow(
+    title: String,
+    subtitle: String,
+    checked: Boolean,
+    onCheckedChange: (Boolean) -> Unit,
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(top = 14.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(modifier = Modifier.weight(1f).padding(end = 12.dp)) {
+            Text(title, fontWeight = FontWeight.SemiBold)
+            Text(subtitle, style = MaterialTheme.typography.bodySmall)
+        }
+        Switch(checked = checked, onCheckedChange = onCheckedChange)
     }
 }
 

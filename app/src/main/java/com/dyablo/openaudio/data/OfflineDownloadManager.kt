@@ -6,7 +6,7 @@ import android.net.Uri
 import android.os.Environment
 
 class OfflineDownloadManager(private val context: Context) {
-    fun download(result: SearchResult): Long? {
+    fun download(result: SearchResult, musicFolder: String): Long? {
         val url = result.downloadUrl ?: return null
         val fileName = buildString {
             append(result.artist.sanitizeFileName())
@@ -20,14 +20,14 @@ class OfflineDownloadManager(private val context: Context) {
             .setDescription("${result.sourceName} - ${result.license}")
             .setMimeType(mimeTypeFor(url))
             .setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
-            .setDestinationInExternalPublicDir(Environment.DIRECTORY_MUSIC, "OpenAudio/$fileName")
+            .setDestinationInExternalPublicDir(Environment.DIRECTORY_MUSIC, "${musicFolder.cleanFolderName()}/$fileName")
             .setAllowedOverMetered(true)
             .setAllowedOverRoaming(false)
 
         return context.getSystemService(DownloadManager::class.java).enqueue(request)
     }
 
-    fun downloadTorrentFile(result: SearchResult): Long? {
+    fun downloadTorrentFile(result: SearchResult, torrentFolder: String): Long? {
         val url = result.torrentUrl ?: return null
         val fileName = "${result.artist.sanitizeFileName()} - ${result.title.sanitizeFileName()}.torrent"
 
@@ -36,7 +36,7 @@ class OfflineDownloadManager(private val context: Context) {
             .setDescription("${result.sourceName} torrent metadata")
             .setMimeType("application/x-bittorrent")
             .setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
-            .setDestinationInExternalPublicDir(Environment.DIRECTORY_DOWNLOADS, "OpenAudio/$fileName")
+            .setDestinationInExternalPublicDir(Environment.DIRECTORY_DOWNLOADS, "${torrentFolder.cleanFolderName()}/$fileName")
             .setAllowedOverMetered(true)
             .setAllowedOverRoaming(false)
 

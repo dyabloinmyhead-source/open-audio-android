@@ -4,12 +4,15 @@ import android.app.Application
 import android.net.Uri
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.dyablo.openaudio.data.AppSettings
 import com.dyablo.openaudio.data.InternetArchiveProvider
 import com.dyablo.openaudio.data.LocalMusicRepository
+import com.dyablo.openaudio.data.MusicSourceProvider
 import com.dyablo.openaudio.data.OfflineDownloadManager
 import com.dyablo.openaudio.data.RutrackerOpenInfoProvider
 import com.dyablo.openaudio.data.SearchResult
 import com.dyablo.openaudio.data.SearchHistoryStore
+import com.dyablo.openaudio.data.SettingsStore
 import com.dyablo.openaudio.data.Track
 import com.dyablo.openaudio.data.TrackSource
 import com.dyablo.openaudio.playback.AudioPlayer
@@ -22,16 +25,20 @@ import kotlinx.coroutines.launch
 
 class OpenAudioViewModel(application: Application) : AndroidViewModel(application) {
     private val localMusicRepository = LocalMusicRepository(application)
-    private val sourceProviders = listOf(
-        InternetArchiveProvider(),
-        RutrackerOpenInfoProvider(),
-    )
+    private val internetArchiveProvider = InternetArchiveProvider()
+    private val rutrackerOpenInfoProvider = RutrackerOpenInfoProvider()
     private val downloadManager = OfflineDownloadManager(application)
     private val searchHistoryStore = SearchHistoryStore(application)
+    private val settingsStore = SettingsStore(application)
     private val player = AudioPlayer(application)
     private var progressJob: Job? = null
 
-    private val _state = MutableStateFlow(OpenAudioState(searchHistory = searchHistoryStore.load()))
+    private val _state = MutableStateFlow(
+        OpenAudioState(
+            searchHistory = searchHistoryStore.load(),
+            settings = settingsStore.load(),
+        ),
+    )
     val state: StateFlow<OpenAudioState> = _state
 
     fun loadLocal() {
@@ -44,6 +51,11 @@ class OpenAudioViewModel(application: Application) : AndroidViewModel(applicatio
 
     fun search() {
         val query = state.value.query
+        val settings = state.value.settings
+        val sourceProviders: List<MusicSourceProvider> = listOfNotNull(
+            internetArchiveProvider.takeIf { settings.internetArchiveVerifiedOpen },
+            rutrackerOpenInfoProvider.takeIf { settings.rutrackerInfoEnabled },
+        )
         viewModelScope.launch {
             _state.update { it.copy(isSearching = true, error = null) }
             runCatching { sourceProviders.flatMap { provider -> provider.search(query) } }
@@ -105,7 +117,7 @@ class OpenAudioViewModel(application: Application) : AndroidViewModel(applicatio
     }
 
     fun saveOffline(result: SearchResult) {
-        val id = downloadManager.download(result)
+        val id = downloadManager.download(result, state.value.settings.musicFolder)
         val pendingTrack = result.downloadUrl?.let { url ->
             Track(
                 id = "download-${result.id}",
@@ -127,7 +139,7 @@ class OpenAudioViewModel(application: Application) : AndroidViewModel(applicatio
     }
 
     fun saveTorrentFile(result: SearchResult) {
-        val id = downloadManager.downloadTorrentFile(result)
+        val id = downloadManager.downloadTorrentFile(result, state.value.settings.torrentFolder)
         val pendingTrack = result.torrentUrl?.let { url ->
             Track(
                 id = "torrent-file-${result.id}",
@@ -173,6 +185,22 @@ class OpenAudioViewModel(application: Application) : AndroidViewModel(applicatio
         _state.update { it.copy(selectedInfo = null) }
     }
 
+    fun setInternetArchiveVerifiedOpen(enabled: Boolean) {
+        updateSettings { it.copy(internetArchiveVerifiedOpen = enabled) }
+    }
+
+    fun setRutrackerInfoEnabled(enabled: Boolean) {
+        updateSettings { it.copy(rutrackerInfoEnabled = enabled) }
+    }
+
+    fun setMusicFolder(folder: String) {
+        updateSettings { it.copy(musicFolder = folder) }
+    }
+
+    fun setTorrentFolder(folder: String) {
+        updateSettings { it.copy(torrentFolder = folder) }
+    }
+
     override fun onCleared() {
         progressJob?.cancel()
         player.release()
@@ -192,11 +220,18 @@ class OpenAudioViewModel(application: Application) : AndroidViewModel(applicatio
             }
         }
     }
+
+    private fun updateSettings(reducer: (AppSettings) -> AppSettings) {
+        val next = reducer(state.value.settings)
+        settingsStore.save(next)
+        _state.update { it.copy(settings = settingsStore.load()) }
+    }
 }
 
 data class OpenAudioState(
     val query: String = "",
     val searchHistory: List<String> = emptyList(),
+    val settings: AppSettings = AppSettings(),
     val localTracks: List<Track> = emptyList(),
     val results: List<SearchResult> = emptyList(),
     val isSearching: Boolean = false,
