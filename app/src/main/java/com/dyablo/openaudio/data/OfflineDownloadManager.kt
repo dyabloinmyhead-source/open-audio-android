@@ -26,6 +26,22 @@ class OfflineDownloadManager(private val context: Context) {
 
         return context.getSystemService(DownloadManager::class.java).enqueue(request)
     }
+
+    fun downloadTorrentFile(result: SearchResult): Long? {
+        val url = result.torrentUrl ?: return null
+        val fileName = "${result.artist.sanitizeFileName()} - ${result.title.sanitizeFileName()}.torrent"
+
+        val request = DownloadManager.Request(Uri.parse(url))
+            .setTitle("${result.title}.torrent")
+            .setDescription("${result.sourceName} torrent metadata")
+            .setMimeType("application/x-bittorrent")
+            .setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
+            .setDestinationInExternalPublicDir(Environment.DIRECTORY_DOWNLOADS, "OpenAudio/$fileName")
+            .setAllowedOverMetered(true)
+            .setAllowedOverRoaming(false)
+
+        return context.getSystemService(DownloadManager::class.java).enqueue(request)
+    }
 }
 
 private fun mimeTypeFor(url: String): String = when {

@@ -133,6 +133,7 @@ fun OpenAudioApp(viewModel: OpenAudioViewModel = viewModel()) {
                 result = result,
                 onDismiss = viewModel::closeInfo,
                 onDownload = viewModel::saveOffline,
+                onTorrentDownload = viewModel::saveTorrentFile,
                 onTestQueue = viewModel::queueInfoDownloadTest,
             )
         }
@@ -346,9 +347,11 @@ private fun InfoDialog(
     result: SearchResult,
     onDismiss: () -> Unit,
     onDownload: (SearchResult) -> Unit,
+    onTorrentDownload: (SearchResult) -> Unit,
     onTestQueue: (SearchResult) -> Unit,
 ) {
     val canDownload = !result.isInfoOnly && result.downloadUrl != null
+    val canDownloadTorrent = !result.isInfoOnly && result.torrentUrl != null
     val actionLabel = if (canDownload) "Save offline" else "Test queue"
 
     AlertDialog(
@@ -362,7 +365,7 @@ private fun InfoDialog(
                 result.metadata?.let { Text(it, style = MaterialTheme.typography.bodySmall) }
                 Text("Seeds: ${result.seeds ?: 0}  Leeches: ${result.leeches ?: 0}", style = MaterialTheme.typography.bodySmall)
                 Text(result.license, style = MaterialTheme.typography.bodySmall)
-                if (!canDownload) {
+                if (!canDownload && !canDownloadTorrent) {
                     Text("Test queue updates the app UI without downloading torrent files.", style = MaterialTheme.typography.labelSmall)
                 }
                 result.infoUrl?.let { Text(it, style = MaterialTheme.typography.labelSmall) }
@@ -374,17 +377,25 @@ private fun InfoDialog(
             }
         },
         dismissButton = {
-            Button(
-                onClick = {
-                    if (canDownload) {
-                        onDownload(result)
-                    } else {
-                        onTestQueue(result)
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                if (canDownloadTorrent) {
+                    Button(onClick = { onTorrentDownload(result) }) {
+                        Icon(Icons.Default.Download, contentDescription = null)
+                        Text("Save torrent")
                     }
-                },
-            ) {
-                Icon(Icons.Default.Download, contentDescription = null)
-                Text(actionLabel)
+                }
+                Button(
+                    onClick = {
+                        if (canDownload) {
+                            onDownload(result)
+                        } else {
+                            onTestQueue(result)
+                        }
+                    },
+                ) {
+                    Icon(Icons.Default.Download, contentDescription = null)
+                    Text(actionLabel)
+                }
             }
         },
     )

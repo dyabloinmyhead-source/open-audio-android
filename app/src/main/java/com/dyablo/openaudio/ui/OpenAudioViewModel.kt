@@ -126,6 +126,28 @@ class OpenAudioViewModel(application: Application) : AndroidViewModel(applicatio
         }
     }
 
+    fun saveTorrentFile(result: SearchResult) {
+        val id = downloadManager.downloadTorrentFile(result)
+        val pendingTrack = result.torrentUrl?.let { url ->
+            Track(
+                id = "torrent-file-${result.id}",
+                title = "${result.title}.torrent",
+                artist = result.artist,
+                uri = Uri.parse(url),
+                source = TrackSource.VerifiedOpenTorrent,
+                license = "Torrent file download pending - ${result.license}",
+            )
+        }
+        _state.update {
+            it.copy(
+                lastDownloadId = id,
+                pendingDownloads = pendingTrack?.let { track -> (it.pendingDownloads + track).distinctBy(Track::id) }
+                    ?: it.pendingDownloads,
+                activeInfo = result,
+            )
+        }
+    }
+
     fun queueInfoDownloadTest(result: SearchResult) {
         val testTrack = Track(
             id = "torrent-test-${result.id}",
