@@ -22,9 +22,12 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Slider
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Tab
 import androidx.compose.material3.TabRow
 import androidx.compose.material3.Text
@@ -58,31 +61,22 @@ fun OpenAudioApp(viewModel: OpenAudioViewModel = viewModel()) {
     MaterialTheme {
         Scaffold(
             topBar = {
-                TopAppBar(
-                    title = {
-                        Column {
-                            Text("OpenAudio", maxLines = 1)
-                            state.nowPlaying?.let {
-                                Text(
-                                    text = "Playing: $it",
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis,
-                                    style = MaterialTheme.typography.bodySmall,
-                                )
-                            }
-                        }
-                    },
-                )
-            },
-            bottomBar = {
-                state.nowPlaying?.let {
-                    MiniPlayer(
-                        title = it,
+                if (state.nowPlaying == null) {
+                    TopAppBar(title = { Text("OpenAudio", maxLines = 1) })
+                } else {
+                    PlayerTopBar(
+                        title = state.nowPlaying.orEmpty(),
                         isPlaying = state.isPlaying,
+                        positionMs = state.positionMs,
+                        durationMs = state.durationMs,
                         onPause = viewModel::pause,
                         onResume = viewModel::resume,
+                        onSeek = viewModel::seekTo,
                     )
                 }
+            },
+            bottomBar = {
+                state.activeInfo?.let { SwarmHealthBar(result = it) }
             },
         ) { padding ->
             Column(
@@ -222,31 +216,84 @@ private fun OpenSearch(
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun MiniPlayer(
+private fun PlayerTopBar(
     title: String,
     isPlaying: Boolean,
+    positionMs: Long,
+    durationMs: Long,
     onPause: () -> Unit,
     onResume: () -> Unit,
+    onSeek: (Long) -> Unit,
 ) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 10.dp),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Column(modifier = Modifier.weight(1f)) {
-            Text("Now playing", style = MaterialTheme.typography.labelSmall)
-            Text(title, maxLines = 1, overflow = TextOverflow.Ellipsis, fontWeight = FontWeight.SemiBold)
+    Surface(shadowElevation = 3.dp) {
+        Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp)) {
+            Row(
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text("OpenAudio", style = MaterialTheme.typography.labelSmall)
+                    Text(title, maxLines = 1, overflow = TextOverflow.Ellipsis, fontWeight = FontWeight.SemiBold)
+                }
+                IconButton(onClick = if (isPlaying) onPause else onResume) {
+                    Icon(
+                        imageVector = if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
+                        contentDescription = if (isPlaying) "Pause" else "Resume",
+                    )
+                }
+            }
+
+            Slider(
+                value = positionMs.coerceIn(0L, durationMs.coerceAtLeast(0L)).toFloat(),
+                onValueChange = { onSeek(it.toLong()) },
+                valueRange = 0f..durationMs.coerceAtLeast(1L).toFloat(),
+                enabled = durationMs > 0L,
+            )
+
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                Text(formatTime(positionMs), style = MaterialTheme.typography.labelSmall)
+                Text(formatTime(durationMs), style = MaterialTheme.typography.labelSmall)
+            }
         }
-        IconButton(onClick = if (isPlaying) onPause else onResume) {
-            Icon(
-                imageVector = if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
-                contentDescription = if (isPlaying) "Pause" else "Resume",
+    }
+}
+
+@Composable
+private fun SwarmHealthBar(result: SearchResult) {
+    val seeds = result.seeds ?: 0
+    val leeches = result.leeches ?: 0
+    val total = (seeds + leeches).coerceAtLeast(1)
+    val health = seeds.toFloat() / total.toFloat()
+
+    Surface(shadowElevation = 4.dp) {
+        Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 10.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text("Swarm health", style = MaterialTheme.typography.labelSmall)
+                    Text(result.title, maxLines = 1, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.bodySmall)
+                }
+                Text("S $seeds / L $leeches", style = MaterialTheme.typography.labelSmall)
+            }
+            LinearProgressIndicator(
+                progress = { health },
+                modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
             )
         }
     }
+}
+
+private fun formatTime(ms: Long): String {
+    val totalSeconds = (ms / 1000).coerceAtLeast(0L)
+    val minutes = totalSeconds / 60
+    val seconds = totalSeconds % 60
+    return "$minutes:${seconds.toString().padStart(2, '0')}"
 }
 
 @Composable
@@ -260,6 +307,7 @@ private fun InfoDialog(result: SearchResult, onDismiss: () -> Unit) {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.widthIn(max = 520.dp)) {
                 Text("${result.artist} - ${result.sourceName}", style = MaterialTheme.typography.bodyMedium)
                 result.metadata?.let { Text(it, style = MaterialTheme.typography.bodySmall) }
+                Text("Seeds: ${result.seeds ?: 0}  Leeches: ${result.leeches ?: 0}", style = MaterialTheme.typography.bodySmall)
                 Text(result.license, style = MaterialTheme.typography.bodySmall)
                 result.infoUrl?.let { Text(it, style = MaterialTheme.typography.labelSmall) }
             }

@@ -12,6 +12,8 @@ import com.dyablo.openaudio.data.SearchResult
 import com.dyablo.openaudio.data.Track
 import com.dyablo.openaudio.data.TrackSource
 import com.dyablo.openaudio.playback.AudioPlayer
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.update
@@ -25,6 +27,7 @@ class OpenAudioViewModel(application: Application) : AndroidViewModel(applicatio
     )
     private val downloadManager = OfflineDownloadManager(application)
     private val player = AudioPlayer(application)
+    private var progressJob: Job? = null
 
     private val _state = MutableStateFlow(OpenAudioState())
     val state: StateFlow<OpenAudioState> = _state
@@ -50,12 +53,14 @@ class OpenAudioViewModel(application: Application) : AndroidViewModel(applicatio
     fun play(track: Track) {
         player.play(track)
         _state.update { it.copy(nowPlaying = track.title, isPlaying = true) }
+        startProgressUpdates()
     }
 
     fun play(result: SearchResult) {
         val url = result.streamUrl ?: return
         player.playUrl(url)
-        _state.update { it.copy(nowPlaying = result.title, isPlaying = true) }
+        _state.update { it.copy(nowPlaying = result.title, isPlaying = true, activeInfo = result.takeIf { it.isInfoOnly }) }
+        startProgressUpdates()
     }
 
     fun pause() {
@@ -66,6 +71,12 @@ class OpenAudioViewModel(application: Application) : AndroidViewModel(applicatio
     fun resume() {
         player.resume()
         _state.update { it.copy(isPlaying = true) }
+        startProgressUpdates()
+    }
+
+    fun seekTo(positionMs: Long) {
+        player.seekTo(positionMs)
+        _state.update { it.copy(positionMs = player.currentPositionMs(), durationMs = player.durationMs()) }
     }
 
     fun saveOffline(result: SearchResult) {
@@ -91,7 +102,7 @@ class OpenAudioViewModel(application: Application) : AndroidViewModel(applicatio
     }
 
     fun openInfo(result: SearchResult) {
-        _state.update { it.copy(selectedInfo = result) }
+        _state.update { it.copy(selectedInfo = result, activeInfo = result) }
     }
 
     fun closeInfo() {
@@ -99,7 +110,23 @@ class OpenAudioViewModel(application: Application) : AndroidViewModel(applicatio
     }
 
     override fun onCleared() {
+        progressJob?.cancel()
         player.release()
+    }
+
+    private fun startProgressUpdates() {
+        progressJob?.cancel()
+        progressJob = viewModelScope.launch {
+            while (true) {
+                _state.update {
+                    it.copy(
+                        positionMs = player.currentPositionMs(),
+                        durationMs = player.durationMs(),
+                    )
+                }
+                delay(750)
+            }
+        }
     }
 }
 
@@ -110,9 +137,12 @@ data class OpenAudioState(
     val isSearching: Boolean = false,
     val nowPlaying: String? = null,
     val isPlaying: Boolean = false,
+    val positionMs: Long = 0L,
+    val durationMs: Long = 0L,
     val lastDownloadId: Long? = null,
     val savedPreviewTrack: Track? = null,
     val pendingDownloads: List<Track> = emptyList(),
     val selectedInfo: SearchResult? = null,
+    val activeInfo: SearchResult? = null,
     val error: String? = null,
 )
