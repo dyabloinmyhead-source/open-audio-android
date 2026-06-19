@@ -27,4 +27,7 @@ data class SearchResult(
     val streamUrl: String?,
     val downloadUrl: String?,
     val torrentUrl: String?,
+    val infoUrl: String? = null,
+    val metadata: String? = null,
+    val isInfoOnly: Boolean = false,
 )

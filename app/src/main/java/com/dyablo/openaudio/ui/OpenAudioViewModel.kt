@@ -7,6 +7,7 @@ import androidx.lifecycle.viewModelScope
 import com.dyablo.openaudio.data.InternetArchiveProvider
 import com.dyablo.openaudio.data.LocalMusicRepository
 import com.dyablo.openaudio.data.OfflineDownloadManager
+import com.dyablo.openaudio.data.RutrackerOpenInfoProvider
 import com.dyablo.openaudio.data.SearchResult
 import com.dyablo.openaudio.data.Track
 import com.dyablo.openaudio.data.TrackSource
@@ -18,7 +19,10 @@ import kotlinx.coroutines.launch
 
 class OpenAudioViewModel(application: Application) : AndroidViewModel(application) {
     private val localMusicRepository = LocalMusicRepository(application)
-    private val sourceProvider = InternetArchiveProvider()
+    private val sourceProviders = listOf(
+        InternetArchiveProvider(),
+        RutrackerOpenInfoProvider(),
+    )
     private val downloadManager = OfflineDownloadManager(application)
     private val player = AudioPlayer(application)
 
@@ -37,7 +41,7 @@ class OpenAudioViewModel(application: Application) : AndroidViewModel(applicatio
         val query = state.value.query
         viewModelScope.launch {
             _state.update { it.copy(isSearching = true, error = null) }
-            runCatching { sourceProvider.search(query) }
+            runCatching { sourceProviders.flatMap { provider -> provider.search(query) } }
                 .onSuccess { results -> _state.update { it.copy(results = results, isSearching = false) } }
                 .onFailure { error -> _state.update { it.copy(error = error.message, isSearching = false) } }
         }

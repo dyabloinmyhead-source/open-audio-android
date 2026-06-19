@@ -10,9 +10,11 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Download
+import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.LibraryMusic
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -33,6 +35,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -133,6 +136,8 @@ private fun OpenSearch(
     onPlay: (SearchResult) -> Unit,
     onDownload: (SearchResult) -> Unit,
 ) {
+    val uriHandler = LocalUriHandler.current
+
     Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
             OutlinedTextField(
@@ -162,14 +167,23 @@ private fun OpenSearch(
                     Column(modifier = Modifier.weight(1f)) {
                         Text(result.title, fontWeight = FontWeight.SemiBold)
                         Text("${result.artist} - ${result.sourceName}", style = MaterialTheme.typography.bodySmall)
+                        result.metadata?.let { Text(it, style = MaterialTheme.typography.labelSmall) }
                         Text(result.license, style = MaterialTheme.typography.labelSmall)
                     }
                     Row {
-                        IconButton(onClick = { onPlay(result) }, enabled = result.streamUrl != null) {
-                            Icon(Icons.Default.PlayArrow, contentDescription = "Play")
-                        }
-                        IconButton(onClick = { onDownload(result) }, enabled = result.downloadUrl != null) {
-                            Icon(Icons.Default.Download, contentDescription = "Save offline")
+                        if (result.isInfoOnly) {
+                            AssistChip(
+                                onClick = { result.infoUrl?.let(uriHandler::openUri) },
+                                label = { Text("Info") },
+                                leadingIcon = { Icon(Icons.Default.Info, contentDescription = null) },
+                            )
+                        } else {
+                            IconButton(onClick = { onPlay(result) }, enabled = result.streamUrl != null) {
+                                Icon(Icons.Default.PlayArrow, contentDescription = "Play")
+                            }
+                            IconButton(onClick = { onDownload(result) }, enabled = result.downloadUrl != null) {
+                                Icon(Icons.Default.Download, contentDescription = "Save offline")
+                            }
                         }
                     }
                 }
