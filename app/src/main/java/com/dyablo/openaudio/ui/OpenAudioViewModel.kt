@@ -79,6 +79,21 @@ class OpenAudioViewModel(application: Application) : AndroidViewModel(applicatio
         _state.update { it.copy(positionMs = player.currentPositionMs(), durationMs = player.durationMs()) }
     }
 
+    fun rewind() {
+        player.seekBy(-10_000L)
+        _state.update { it.copy(positionMs = player.currentPositionMs(), durationMs = player.durationMs()) }
+    }
+
+    fun forward() {
+        player.seekBy(30_000L)
+        _state.update { it.copy(positionMs = player.currentPositionMs(), durationMs = player.durationMs()) }
+    }
+
+    fun stop() {
+        player.stop()
+        _state.update { it.copy(isPlaying = false, positionMs = 0L) }
+    }
+
     fun saveOffline(result: SearchResult) {
         val id = downloadManager.download(result)
         val pendingTrack = result.downloadUrl?.let { url ->

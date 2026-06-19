@@ -15,7 +15,10 @@ import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.LibraryMusic
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Forward30
+import androidx.compose.material.icons.filled.Replay10
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Button
 import androidx.compose.material3.AlertDialog
@@ -72,6 +75,9 @@ fun OpenAudioApp(viewModel: OpenAudioViewModel = viewModel()) {
                         onPause = viewModel::pause,
                         onResume = viewModel::resume,
                         onSeek = viewModel::seekTo,
+                        onRewind = viewModel::rewind,
+                        onForward = viewModel::forward,
+                        onStop = viewModel::stop,
                     )
                 }
             },
@@ -121,7 +127,11 @@ fun OpenAudioApp(viewModel: OpenAudioViewModel = viewModel()) {
         }
 
         state.selectedInfo?.let { result ->
-            InfoDialog(result = result, onDismiss = viewModel::closeInfo)
+            InfoDialog(
+                result = result,
+                onDismiss = viewModel::closeInfo,
+                onDownload = viewModel::saveOffline,
+            )
         }
     }
 }
@@ -226,6 +236,9 @@ private fun PlayerTopBar(
     onPause: () -> Unit,
     onResume: () -> Unit,
     onSeek: (Long) -> Unit,
+    onRewind: () -> Unit,
+    onForward: () -> Unit,
+    onStop: () -> Unit,
 ) {
     Surface(shadowElevation = 3.dp) {
         Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp)) {
@@ -238,11 +251,22 @@ private fun PlayerTopBar(
                     Text("OpenAudio", style = MaterialTheme.typography.labelSmall)
                     Text(title, maxLines = 1, overflow = TextOverflow.Ellipsis, fontWeight = FontWeight.SemiBold)
                 }
-                IconButton(onClick = if (isPlaying) onPause else onResume) {
-                    Icon(
-                        imageVector = if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
-                        contentDescription = if (isPlaying) "Pause" else "Resume",
-                    )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    IconButton(onClick = onRewind) {
+                        Icon(Icons.Default.Replay10, contentDescription = "Rewind 10 seconds")
+                    }
+                    IconButton(onClick = if (isPlaying) onPause else onResume) {
+                        Icon(
+                            imageVector = if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
+                            contentDescription = if (isPlaying) "Pause" else "Resume",
+                        )
+                    }
+                    IconButton(onClick = onForward) {
+                        Icon(Icons.Default.Forward30, contentDescription = "Forward 30 seconds")
+                    }
+                    IconButton(onClick = onStop) {
+                        Icon(Icons.Default.Stop, contentDescription = "Stop")
+                    }
                 }
             }
 
@@ -297,7 +321,13 @@ private fun formatTime(ms: Long): String {
 }
 
 @Composable
-private fun InfoDialog(result: SearchResult, onDismiss: () -> Unit) {
+private fun InfoDialog(
+    result: SearchResult,
+    onDismiss: () -> Unit,
+    onDownload: (SearchResult) -> Unit,
+) {
+    val canDownload = !result.isInfoOnly && result.downloadUrl != null
+
     AlertDialog(
         onDismissRequest = onDismiss,
         title = {
@@ -309,12 +339,24 @@ private fun InfoDialog(result: SearchResult, onDismiss: () -> Unit) {
                 result.metadata?.let { Text(it, style = MaterialTheme.typography.bodySmall) }
                 Text("Seeds: ${result.seeds ?: 0}  Leeches: ${result.leeches ?: 0}", style = MaterialTheme.typography.bodySmall)
                 Text(result.license, style = MaterialTheme.typography.bodySmall)
+                if (!canDownload) {
+                    Text("Download is available only for verified open audio sources.", style = MaterialTheme.typography.labelSmall)
+                }
                 result.infoUrl?.let { Text(it, style = MaterialTheme.typography.labelSmall) }
             }
         },
         confirmButton = {
             Button(onClick = onDismiss) {
                 Text("Close")
+            }
+        },
+        dismissButton = {
+            Button(
+                onClick = { onDownload(result) },
+                enabled = canDownload,
+            ) {
+                Icon(Icons.Default.Download, contentDescription = null)
+                Text("Save offline")
             }
         },
     )

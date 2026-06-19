@@ -33,6 +33,17 @@ class AudioPlayer(context: Context) {
         player.seekTo(positionMs)
     }
 
+    fun seekBy(deltaMs: Long) {
+        val duration = durationMs()
+        val upperBound = if (duration > 0L) duration else Long.MAX_VALUE
+        val nextPosition = (currentPositionMs() + deltaMs).coerceIn(0L, upperBound)
+        player.seekTo(nextPosition)
+    }
+
+    fun stop() {
+        player.stop()
+    }
+
     fun currentPositionMs(): Long = player.currentPosition.coerceAtLeast(0L)
 
     fun durationMs(): Long {
