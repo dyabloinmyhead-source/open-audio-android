@@ -1,0 +1,31 @@
+package com.dyablo.openaudio.data
+
+import android.app.DownloadManager
+import android.content.Context
+import android.net.Uri
+import android.os.Environment
+
+class OfflineDownloadManager(private val context: Context) {
+    fun download(result: SearchResult): Long? {
+        val url = result.downloadUrl ?: return null
+        val fileName = buildString {
+            append(result.artist.sanitizeFileName())
+            append(" - ")
+            append(result.title.sanitizeFileName())
+            append(".mp3")
+        }
+
+        val request = DownloadManager.Request(Uri.parse(url))
+            .setTitle(result.title)
+            .setDescription("${result.sourceName} - ${result.license}")
+            .setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
+            .setDestinationInExternalPublicDir(Environment.DIRECTORY_MUSIC, "OpenAudio/$fileName")
+            .setAllowedOverMetered(true)
+            .setAllowedOverRoaming(false)
+
+        return context.getSystemService(DownloadManager::class.java).enqueue(request)
+    }
+}
+
+private fun String.sanitizeFileName(): String =
+    replace(Regex("[^A-Za-z0-9 ._'-]"), "_").take(80).ifBlank { "track" }

@@ -1,0 +1,7 @@
+<resources>
+    <style name="Theme.OpenAudio" parent="android:style/Theme.Material.Light.NoActionBar">
+        <item name="android:windowLightStatusBar">true</item>
+        <item name="android:navigationBarColor">#F7F7F2</item>
+        <item name="android:fontFamily">sans</item>
+    </style>
+</resources>
