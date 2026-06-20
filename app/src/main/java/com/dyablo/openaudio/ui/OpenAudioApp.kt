@@ -25,6 +25,8 @@ import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Button
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
@@ -33,7 +35,6 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Surface
-import androidx.compose.material3.Switch
 import androidx.compose.material3.Tab
 import androidx.compose.material3.TabRow
 import androidx.compose.material3.Text
@@ -47,12 +48,15 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalUriHandler
+import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.dyablo.openaudio.data.AppSettings
 import com.dyablo.openaudio.data.SearchResult
+import com.dyablo.openaudio.data.SourceMode
 import com.dyablo.openaudio.data.Track
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -136,10 +140,14 @@ fun OpenAudioApp(viewModel: OpenAudioViewModel = viewModel()) {
 
                     else -> SettingsScreen(
                         settings = state.settings,
-                        onInternetArchiveEnabledChange = viewModel::setInternetArchiveEnabled,
-                        onInternetArchiveChange = viewModel::setInternetArchiveVerifiedOpen,
-                        onRutrackerInfoChange = viewModel::setRutrackerInfoEnabled,
-                        onRutrackerVerifiedOpenChange = viewModel::setRutrackerVerifiedOpen,
+                        onInternetArchiveModeChange = viewModel::setInternetArchiveMode,
+                        onRutrackerModeChange = viewModel::setRutrackerMode,
+                        onYouTubeModeChange = viewModel::setYouTubeMode,
+                        onVkModeChange = viewModel::setVkMode,
+                        onYandexModeChange = viewModel::setYandexMusicMode,
+                        onYouTubeApiKeyChange = viewModel::setYouTubeApiKey,
+                        onVkAccessTokenChange = viewModel::setVkAccessToken,
+                        onYandexAccessTokenChange = viewModel::setYandexAccessToken,
                         onMusicFolderChange = viewModel::setMusicFolder,
                         onTorrentFolderChange = viewModel::setTorrentFolder,
                     )
@@ -162,39 +170,63 @@ fun OpenAudioApp(viewModel: OpenAudioViewModel = viewModel()) {
 @Composable
 private fun SettingsScreen(
     settings: AppSettings,
-    onInternetArchiveEnabledChange: (Boolean) -> Unit,
-    onInternetArchiveChange: (Boolean) -> Unit,
-    onRutrackerInfoChange: (Boolean) -> Unit,
-    onRutrackerVerifiedOpenChange: (Boolean) -> Unit,
+    onInternetArchiveModeChange: (SourceMode) -> Unit,
+    onRutrackerModeChange: (SourceMode) -> Unit,
+    onYouTubeModeChange: (SourceMode) -> Unit,
+    onVkModeChange: (SourceMode) -> Unit,
+    onYandexModeChange: (SourceMode) -> Unit,
+    onYouTubeApiKeyChange: (String) -> Unit,
+    onVkAccessTokenChange: (String) -> Unit,
+    onYandexAccessTokenChange: (String) -> Unit,
     onMusicFolderChange: (String) -> Unit,
     onTorrentFolderChange: (String) -> Unit,
 ) {
     LazyColumn(modifier = Modifier.fillMaxSize().padding(16.dp)) {
         item {
             Text("Sources", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-            SettingSwitchRow(
-                title = "Internet Archive enabled",
-                subtitle = "Search open audio catalog results",
-                checked = settings.internetArchiveEnabled,
-                onCheckedChange = onInternetArchiveEnabledChange,
+            SourceSettings(
+                title = "Internet Archive",
+                subtitle = "Open audio and direct offline files",
+                mode = settings.internetArchiveMode,
+                onModeChange = onInternetArchiveModeChange,
+                authLabel = "No authorization required",
             )
-            SettingSwitchRow(
-                title = "Internet Archive verified-open",
-                subtitle = "Allow offline audio and .torrent metadata saves",
-                checked = settings.internetArchiveVerifiedOpen,
-                onCheckedChange = onInternetArchiveChange,
+            SourceSettings(
+                title = "RuTracker",
+                subtitle = "Metadata only; no direct file access",
+                mode = settings.rutrackerMode,
+                onModeChange = onRutrackerModeChange,
+                authLabel = "Public metadata access",
             )
-            SettingSwitchRow(
-                title = "RuTracker info enabled",
-                subtitle = "Metadata and test queue only",
-                checked = settings.rutrackerInfoEnabled,
-                onCheckedChange = onRutrackerInfoChange,
+            SourceSettings(
+                title = "YouTube Music",
+                subtitle = "Official Data API; Open filters Creative Commons",
+                mode = settings.youtubeMode,
+                onModeChange = onYouTubeModeChange,
+                authLabel = if (settings.youtubeApiKey.isBlank()) "API key required" else "API key saved locally",
+                credential = settings.youtubeApiKey,
+                credentialLabel = "YouTube Data API key",
+                onCredentialChange = onYouTubeApiKeyChange,
             )
-            SettingSwitchRow(
-                title = "RuTracker marked verified-open",
-                subtitle = "Trust flag for metadata; downloads still use test queue",
-                checked = settings.rutrackerVerifiedOpen,
-                onCheckedChange = onRutrackerVerifiedOpenChange,
+            SourceSettings(
+                title = "VK Music",
+                subtitle = "Official catalog link; provider terms apply",
+                mode = settings.vkMode,
+                onModeChange = onVkModeChange,
+                authLabel = if (settings.vkAccessToken.isBlank()) "Not authorized" else "Access token saved locally",
+                credential = settings.vkAccessToken,
+                credentialLabel = "VK access token",
+                onCredentialChange = onVkAccessTokenChange,
+            )
+            SourceSettings(
+                title = "Yandex Music",
+                subtitle = "Official catalog link; provider terms apply",
+                mode = settings.yandexMusicMode,
+                onModeChange = onYandexModeChange,
+                authLabel = if (settings.yandexAccessToken.isBlank()) "Not authorized" else "OAuth token saved locally",
+                credential = settings.yandexAccessToken,
+                credentialLabel = "Yandex OAuth token",
+                onCredentialChange = onYandexAccessTokenChange,
             )
 
             Text(
@@ -225,22 +257,43 @@ private fun SettingsScreen(
 }
 
 @Composable
-private fun SettingSwitchRow(
+private fun SourceSettings(
     title: String,
     subtitle: String,
-    checked: Boolean,
-    onCheckedChange: (Boolean) -> Unit,
+    mode: SourceMode,
+    onModeChange: (SourceMode) -> Unit,
+    authLabel: String,
+    credential: String? = null,
+    credentialLabel: String? = null,
+    onCredentialChange: ((String) -> Unit)? = null,
 ) {
-    Row(
-        modifier = Modifier.fillMaxWidth().padding(top = 14.dp),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Column(modifier = Modifier.weight(1f).padding(end = 12.dp)) {
-            Text(title, fontWeight = FontWeight.SemiBold)
-            Text(subtitle, style = MaterialTheme.typography.bodySmall)
+    Column(modifier = Modifier.fillMaxWidth().padding(top = 16.dp)) {
+        Text(title, fontWeight = FontWeight.SemiBold)
+        Text(subtitle, style = MaterialTheme.typography.bodySmall)
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            SourceMode.entries.forEach { option ->
+                FilterChip(
+                    selected = mode == option,
+                    onClick = { onModeChange(option) },
+                    label = { Text(option.name) },
+                )
+            }
         }
-        Switch(checked = checked, onCheckedChange = onCheckedChange)
+        Text(authLabel, style = MaterialTheme.typography.labelSmall)
+        if (credential != null && credentialLabel != null && onCredentialChange != null) {
+            OutlinedTextField(
+                value = credential,
+                onValueChange = onCredentialChange,
+                modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+                singleLine = true,
+                label = { Text(credentialLabel) },
+                visualTransformation = PasswordVisualTransformation(),
+            )
+        }
+        HorizontalDivider(modifier = Modifier.padding(top = 16.dp))
     }
 }
 
@@ -455,9 +508,10 @@ private fun InfoDialog(
     onTorrentDownload: (SearchResult) -> Unit,
     onTestQueue: (SearchResult) -> Unit,
 ) {
+    val uriHandler = LocalUriHandler.current
     val canDownload = result.isVerifiedOpen && !result.isInfoOnly && result.downloadUrl != null
     val canDownloadTorrent = result.isVerifiedOpen && !result.isInfoOnly && result.torrentUrl != null
-    val actionLabel = if (canDownload) "Save offline" else "Test queue"
+    val canTestQueue = result.seeds != null || result.leeches != null
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -471,7 +525,7 @@ private fun InfoDialog(
                 Text("Seeds: ${result.seeds ?: 0}  Leeches: ${result.leeches ?: 0}", style = MaterialTheme.typography.bodySmall)
                 Text("Verified-open: ${if (result.isVerifiedOpen) "yes" else "no"}", style = MaterialTheme.typography.bodySmall)
                 Text(result.license, style = MaterialTheme.typography.bodySmall)
-                if (!canDownload && !canDownloadTorrent) {
+                if (canTestQueue && !canDownload && !canDownloadTorrent) {
                     Text("Test queue updates the app UI without downloading torrent files.", style = MaterialTheme.typography.labelSmall)
                 }
                 result.infoUrl?.let { Text(it, style = MaterialTheme.typography.labelSmall) }
@@ -490,17 +544,18 @@ private fun InfoDialog(
                         Text("Save torrent")
                     }
                 }
-                Button(
-                    onClick = {
-                        if (canDownload) {
-                            onDownload(result)
-                        } else {
-                            onTestQueue(result)
-                        }
-                    },
-                ) {
-                    Icon(Icons.Default.Download, contentDescription = null)
-                    Text(actionLabel)
+                when {
+                    canDownload -> Button(onClick = { onDownload(result) }) {
+                        Icon(Icons.Default.Download, contentDescription = null)
+                        Text("Save offline")
+                    }
+                    canTestQueue -> Button(onClick = { onTestQueue(result) }) {
+                        Icon(Icons.Default.Download, contentDescription = null)
+                        Text("Test queue")
+                    }
+                    result.infoUrl != null -> Button(onClick = { uriHandler.openUri(result.infoUrl) }) {
+                        Text("Open source")
+                    }
                 }
             }
         },

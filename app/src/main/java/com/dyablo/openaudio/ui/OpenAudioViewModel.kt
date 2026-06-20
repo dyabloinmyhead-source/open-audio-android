@@ -9,12 +9,15 @@ import com.dyablo.openaudio.data.InternetArchiveProvider
 import com.dyablo.openaudio.data.LocalMusicRepository
 import com.dyablo.openaudio.data.MusicSourceProvider
 import com.dyablo.openaudio.data.OfflineDownloadManager
+import com.dyablo.openaudio.data.OfficialCatalogProvider
 import com.dyablo.openaudio.data.RutrackerOpenInfoProvider
 import com.dyablo.openaudio.data.SearchResult
 import com.dyablo.openaudio.data.SearchHistoryStore
 import com.dyablo.openaudio.data.SettingsStore
+import com.dyablo.openaudio.data.SourceMode
 import com.dyablo.openaudio.data.Track
 import com.dyablo.openaudio.data.TrackSource
+import com.dyablo.openaudio.data.YouTubeMusicProvider
 import com.dyablo.openaudio.playback.AudioPlayer
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -52,33 +55,54 @@ class OpenAudioViewModel(application: Application) : AndroidViewModel(applicatio
     fun search() {
         val query = state.value.query
         val settings = state.value.settings
+        val setupWarnings = buildList {
+            if (settings.youtubeMode != SourceMode.Off && settings.youtubeApiKey.isBlank()) {
+                add("YouTube Music: add a Data API key in Settings")
+            }
+        }
         val sourceProviders: List<MusicSourceProvider> = listOfNotNull(
-            internetArchiveProvider.takeIf { settings.internetArchiveEnabled },
-            rutrackerOpenInfoProvider.takeIf { settings.rutrackerInfoEnabled },
+            internetArchiveProvider.takeIf { settings.internetArchiveMode != SourceMode.Off },
+            rutrackerOpenInfoProvider.takeIf { settings.rutrackerMode != SourceMode.Off },
+            YouTubeMusicProvider(
+                apiKey = settings.youtubeApiKey,
+                openOnly = settings.youtubeMode == SourceMode.Open,
+            ).takeIf { settings.youtubeMode != SourceMode.Off && settings.youtubeApiKey.isNotBlank() },
+            OfficialCatalogProvider(
+                name = "VK Music",
+                searchUrl = { encoded -> "https://vk.com/audio?q=$encoded" },
+                authorized = settings.vkAccessToken.isNotBlank(),
+            ).takeIf { settings.vkMode != SourceMode.Off },
+            OfficialCatalogProvider(
+                name = "Yandex Music",
+                searchUrl = { encoded -> "https://music.yandex.ru/search?text=$encoded" },
+                authorized = settings.yandexAccessToken.isNotBlank(),
+            ).takeIf { settings.yandexMusicMode != SourceMode.Off },
         )
         viewModelScope.launch {
             _state.update { it.copy(isSearching = true, error = null) }
-            runCatching {
-                sourceProviders.flatMap { provider ->
+            val failures = mutableListOf<String>()
+            val results = sourceProviders.flatMap { provider ->
+                runCatching {
                     provider.search(query).map { result ->
                         when (provider) {
-                            internetArchiveProvider -> result.copy(isVerifiedOpen = settings.internetArchiveVerifiedOpen)
-                            rutrackerOpenInfoProvider -> result.copy(isVerifiedOpen = settings.rutrackerVerifiedOpen)
+                            internetArchiveProvider -> result.copy(isVerifiedOpen = settings.internetArchiveMode == SourceMode.Open)
+                            rutrackerOpenInfoProvider -> result.copy(isVerifiedOpen = settings.rutrackerMode == SourceMode.Open)
                             else -> result
                         }
                     }
+                }.getOrElse { error ->
+                    failures += "${provider.name}: ${error.message ?: "search failed"}"
+                    emptyList()
                 }
             }
-                .onSuccess { results ->
-                    _state.update {
-                        it.copy(
-                            results = results,
-                            isSearching = false,
-                            searchHistory = searchHistoryStore.save(query),
-                        )
-                    }
-                }
-                .onFailure { error -> _state.update { it.copy(error = error.message, isSearching = false) } }
+            _state.update {
+                it.copy(
+                    results = results,
+                    isSearching = false,
+                    searchHistory = searchHistoryStore.save(query),
+                    error = (setupWarnings + failures).takeIf { warnings -> warnings.isNotEmpty() }?.joinToString("\n"),
+                )
+            }
         }
     }
 
@@ -195,20 +219,36 @@ class OpenAudioViewModel(application: Application) : AndroidViewModel(applicatio
         _state.update { it.copy(selectedInfo = null) }
     }
 
-    fun setInternetArchiveVerifiedOpen(enabled: Boolean) {
-        updateSettings { it.copy(internetArchiveVerifiedOpen = enabled) }
+    fun setInternetArchiveMode(mode: SourceMode) {
+        updateSettings { it.copy(internetArchiveMode = mode) }
     }
 
-    fun setInternetArchiveEnabled(enabled: Boolean) {
-        updateSettings { it.copy(internetArchiveEnabled = enabled) }
+    fun setRutrackerMode(mode: SourceMode) {
+        updateSettings { it.copy(rutrackerMode = mode) }
     }
 
-    fun setRutrackerInfoEnabled(enabled: Boolean) {
-        updateSettings { it.copy(rutrackerInfoEnabled = enabled) }
+    fun setYouTubeMode(mode: SourceMode) {
+        updateSettings { it.copy(youtubeMode = mode) }
     }
 
-    fun setRutrackerVerifiedOpen(enabled: Boolean) {
-        updateSettings { it.copy(rutrackerVerifiedOpen = enabled) }
+    fun setVkMode(mode: SourceMode) {
+        updateSettings { it.copy(vkMode = mode) }
+    }
+
+    fun setYandexMusicMode(mode: SourceMode) {
+        updateSettings { it.copy(yandexMusicMode = mode) }
+    }
+
+    fun setYouTubeApiKey(value: String) {
+        updateSettings { it.copy(youtubeApiKey = value) }
+    }
+
+    fun setVkAccessToken(value: String) {
+        updateSettings { it.copy(vkAccessToken = value) }
+    }
+
+    fun setYandexAccessToken(value: String) {
+        updateSettings { it.copy(yandexAccessToken = value) }
     }
 
     fun setMusicFolder(folder: String) {
